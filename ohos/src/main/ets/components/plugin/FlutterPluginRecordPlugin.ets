@@ -39,13 +39,13 @@ export default class FlutterPluginRecordPlugin implements FlutterPlugin, MethodC
   onMethodCall(call: MethodCall, result: MethodResult): void {
     switch (call.method) {
       case 'init':
-        this.init();
+        this.init(call.argument('id'));
         break;
       case 'initRecordMp3':
-
+        this.initRecordMp3();
         break;
       case 'start':
-        this.start(call.argument('id'));
+        this.start();
         break;
       case 'stop':
         this.stop();
@@ -68,25 +68,42 @@ export default class FlutterPluginRecordPlugin implements FlutterPlugin, MethodC
     }
   }
 
-  private init() {
+  private init(id: string) {
     this.recordMp3 = false;
+    if (this.record != undefined) {
+      this.record.release();
+      this.record = undefined
+    }
+
+    if (this.player != undefined) {
+      this.player?.release();
+      this.record = undefined
+    }
+    if (this.channel) {
+      this.record = new AvRecordManager(this.channel, id);
+      this.player = new AvPlayManager(this.channel, id);
+      let m1: Record<string,string> = {
+        "id": id,
+        "result": "success"
+      }
+      this.channel.invokeMethod('onInit', m1);
+    }
   }
 
   private initRecordMp3() {
     this.recordMp3 = true;
   }
 
-  private start(id: string){
+  private start(){
     if (this.isRecording) {
       return ;
     }
     if (!this.channel) {
       return;
     }
-    this.record = new AvRecordManager(this.channel, id);
     const context: Context = getContext(this);
     let filePath: string = context.filesDir + '/example.mp3';
-    this.record.startRecord(filePath)
+    this.record?.startRecord(filePath)
   }
 
   private play(){
@@ -119,10 +136,10 @@ export default class FlutterPluginRecordPlugin implements FlutterPlugin, MethodC
     this.player?.stop();
   }
 
-  private stop(){
+  private async stop(){
     if (!this.channel) {
       return;
     }
-    this.record?.stopRecord();
+    this.filePath = await this.record?.stopRecord();
   }
 }

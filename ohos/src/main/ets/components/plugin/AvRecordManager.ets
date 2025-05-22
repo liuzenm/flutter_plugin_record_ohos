@@ -53,15 +53,7 @@ export class AvRecordManager {
           }
           this.channel?.invokeMethod('onStart', m1);
         } else if (state == 'stopped') {
-          if (this.filePath != null && this.audioTimeLength) {
-            let m1: Record<string, string> = {
-              "id": this.id,
-              'result': 'success',
-              'voicePath' : this.filePath,
-              'audioTimeLength': this.audioTimeLength
-            }
-            this.channel?.invokeMethod('onStop', m1);
-          }
+
         }
       })
       // 错误上报回调函数。
@@ -109,12 +101,24 @@ export class AvRecordManager {
       this.recorder = undefined;
       // 4.关闭录制文件fd。
       fs.close(this.file);
-      if (this.filePath) {
+      if (this.filePath != null && this.audioTimeLength) {
+        let m1: Record<string, string> = {
+          "id": this.id,
+          'result': 'success',
+          'voicePath' : this.filePath,
+          'audioTimeLength': `${Number(this.audioTimeLength)/1000}`
+        }
+        this.channel?.invokeMethod('onStop', m1);
         return this.filePath;
       }
       return undefined;
     }
     return undefined;
+  }
+
+  public async release() {
+      await this.recorder?.release();
+      this.recorder = undefined;
   }
 
 }

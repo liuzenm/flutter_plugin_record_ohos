@@ -9,7 +9,7 @@ const TAG: string = 'AudioRecordManager';
 
 export class AvPlayManager {
   private avPlayer: media.AVPlayer | null = null;
-  private fileStream: fs.File | null = null;
+  private file: fs.File | null = null;
   private channel: MethodChannel | undefined = undefined;
   private id: string;
   private isplaying: boolean = false;
@@ -42,6 +42,12 @@ export class AvPlayManager {
     });
     // 状态机变化回调函数。
     avPlayer.on('stateChange', async (state: string, reason: media.StateChangeReason) => {
+      let m2: Record<string, string> = {
+        "id": this.id,
+        'playPath': this.tempFilePath,
+        'playState': state
+      }
+      this.channel?.invokeMethod('onPlayState', m2);
       switch (state) {
         case 'idle': // 成功调用reset接口后触发该状态机上报。
           console.info('AVPlayer state idle called.');
@@ -57,6 +63,7 @@ export class AvPlayManager {
           break;
         case 'prepared': // prepare调用成功后上报该状态机。
           console.info('AVPlayer state prepared called.');
+          avPlayer.play();
           break;
         case 'playing': // play成功调用后触发该状态机上报。
           let m1: Record<string, string> = {
@@ -95,14 +102,13 @@ export class AvPlayManager {
       console.error(TAG, 'Recording is already in progress');
       return;
     }
-
     try {
+      this.avPlayer = await media.createAVPlayer();
+      this.setAVPlayerCallback(this.avPlayer);
       this.tempFilePath = filePath;
       // 创建并打开文件流
-      this.fileStream = await fs.openSync(this.tempFilePath, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE);
-
-      this.avPlayer?.play();
-
+      this.file = await fs.open(this.tempFilePath, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE);
+      this.avPlayer.url = 'fd://' + this.file.fd;
     } catch (error) {
       console.error(TAG, 'Start play failed: ' + error.message);
     }
@@ -124,7 +130,18 @@ export class AvPlayManager {
     try {
       await this.avPlayer?.stop();
       await this.avPlayer?.release();
-      await fs.close(this.fileStream?.fd);
+      this.avPlayer = null;
+      await fs.close(this.file?.fd);
+    } catch (error) {
+      console.error(TAG, 'Stop play failed: ' + error.message);
+    }
+  }
+
+  // 停止录音
+  public async release() {
+    try {
+      await this.avPlayer?.release();
+      this.avPlayer = null;
     } catch (error) {
       console.error(TAG, 'Stop play failed: ' + error.message);
     }
